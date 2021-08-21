@@ -87,62 +87,6 @@ QuestUI::IncrementSetting *ui_applyConstraintCount = nullptr;
 QuestUI::IncrementSetting *ui_applyAmount          = nullptr;
 QuestUI::IncrementSetting *ui_velocityMultiplier   = nullptr;
 
-// ------ Settings 1 ------
-//float handleLength = 0.24f;
-//float flailLength  = 0.36f;
-//float shiftFlailForward = 0.13f;
-//
-//float ropeSegLen = 0.015f;
-//float lastRopeSegLen = 0.16f; // LONGER LAST NODE SIMULATES WEIGHT
-//
-//int segmentLength = 9;
-//UnityEngine::Vector3 forceGravity{0.0f, -0.13f, 0.0f};
-//int applyConstraintCount = 9;
-//float applyAmount = 0.490f; // 0.01f - 1.0f
-//float velocityMultiplier = 0.94f;
-
-// ------ Settings 2 ------
-//float handleLength = 0.19f;
-//float flailLength  = 0.36f;
-//float shiftFlailForward = 0.15f;
-//
-//float ropeSegLen = 0.016f;
-//float lastRopeSegLen = 0.22f; // LONGER LAST NODE SIMULATES WEIGHT
-//
-//int segmentLength = 4;
-//UnityEngine::Vector3 forceGravity{0.0f, -0.22f, 0.0f};
-//int applyConstraintCount = 9;
-//float applyAmount = 0.490f; // 0.01f - 1.0f
-//float velocityMultiplier = 0.98f;
-
-// ------ Settings 3 ------
-//float handleLength = 0.29f;
-//float flailLength  = 0.36f;
-//float shiftFlailForward = 0.15f;
-//
-//float ropeSegLen = 0.012f;
-//float lastRopeSegLen = 0.22f; // LONGER LAST NODE SIMULATES WEIGHT
-//
-//int segmentLength = 10;
-//UnityEngine::Vector3 forceGravity{0.0f, -0.18f, 0.0f};
-//int applyConstraintCount = 14;
-//float applyAmount = 0.485f; // 0.01f - 1.0f
-//float velocityMultiplier = 0.97f;
-
-// ------ Settings 4 ------
-//float handleLength = 0.32f;
-//float flailLength  = 0.36f;
-//float shiftFlailForward = 0.22f;
-//
-//float ropeSegLen = 0.021f;
-//float lastRopeSegLen = 0.215f; // LONGER LAST NODE SIMULATES WEIGHT
-//
-//int segmentLength = 4;
-//UnityEngine::Vector3 forceGravity{0.0f, -0.19f, 0.0f};
-//int applyConstraintCount = 32;
-//float applyAmount = 0.485f; // 0.01f - 1.0f
-//float velocityMultiplier = 0.982f;
-
 // ------ Settings 0 (Long) ------
 const float default0_handleLength = 0.32f;
 const float default0_flailLength  = 0.36f;
@@ -178,15 +122,15 @@ const float default2_velocityMultiplier   = 0.982f;
 
 struct{
     bool flailSaber_enabled    = true;
-    float handleLength         = default1_handleLength;        
-    float flailLength          = default1_flailLength;         
-    float ropeSegLen           = default1_ropeSegLen;          
-    float lastRopeSegLen       = default1_lastRopeSegLen;      
-    int   segmentLength        = default1_segmentLength;       
-    float forceGravity         = default1_forceGravity;        
-    int   applyConstraintCount = default1_applyConstraintCount;
-    float applyAmount          = default1_applyAmount;         
-    float velocityMultiplier   = default1_velocityMultiplier;  
+    float handleLength         = default2_handleLength;        
+    float flailLength          = default2_flailLength;         
+    float ropeSegLen           = default2_ropeSegLen;          
+    float lastRopeSegLen       = default2_lastRopeSegLen;      
+    int   segmentLength        = default2_segmentLength;       
+    float forceGravity         = default2_forceGravity;        
+    int   applyConstraintCount = default2_applyConstraintCount;
+    float applyAmount          = default2_applyAmount;         
+    float velocityMultiplier   = default2_velocityMultiplier;  
 } flail_config;
 
 
