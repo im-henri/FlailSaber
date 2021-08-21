@@ -1,0 +1,322 @@
+#include "main.hpp"
+
+#include "beatsaber-hook/shared/utils/hooking.hpp"
+#include "questui/shared/QuestUI.hpp"
+
+#include "shared/utils/utils-functions.h" // csstrtostr
+
+#include "GlobalNamespace/MainMenuViewController.hpp"
+#include "GlobalNamespace/HealthWarningViewController.hpp"
+#include "GlobalNamespace/SaberModelController.hpp"
+#include "GlobalNamespace/Saber.hpp"
+#include "GlobalNamespace/SaberTypeObject.hpp"
+#include "GlobalNamespace/SaberType.hpp"
+
+#include "HMUI/CurvedTextMeshPro.hpp"
+#include "UnityEngine/GameObject.hpp"
+#include "TMPro/TextMeshPro.hpp"
+#include "TMPro/TMP_Text.hpp"
+#include "UnityEngine/Resources.hpp"
+#include "UnityEngine/HideFlags.hpp"
+#include "UnityEngine/Transform.hpp"
+#include "UnityEngine/GameObject.hpp"
+#include "UnityEngine/Rigidbody.hpp"
+#include "UnityEngine/Joint.hpp"
+
+#include <sstream>
+
+static ModInfo modInfo; // Stores the ID and version of our mod, and is sent to the modloader upon startup
+
+GlobalNamespace::Saber*  leftSaber = nullptr;
+GlobalNamespace::Saber* rightSaber = nullptr;
+
+UnityEngine::Transform* r_physicalHand = nullptr;
+UnityEngine::Transform* r_saberBottom = nullptr;
+UnityEngine::Transform* r_saberTop = nullptr;
+UnityEngine::Rigidbody* r_thisRB = nullptr;
+
+
+float prevTime = 0.0f;
+
+// Loads the config from disk using our modInfo, then returns it for use
+Configuration& getConfig() {
+    static Configuration config(modInfo);
+    config.Load();
+    return config;
+}
+
+// Returns a logger, useful for printing debug messages
+Logger& getLogger() {
+    static Logger* logger = new Logger(modInfo);
+    return *logger;
+}
+
+// Called at the early stages of game loading
+extern "C" void setup(ModInfo& info) {
+    info.id = ID;
+    info.version = VERSION;
+    modInfo = info;
+	
+    getConfig().Load(); // Load the config file
+    getLogger().info("Completed setup!");
+}
+
+// Hook 2
+//
+void WRITE_TO_LOG(std::stringstream& logStream){
+    bool success = writefile("sdcard/Android/data/com.beatgames.beatsaber/files/logs/FlailSaber.log", logStream.str());
+    if (success)   getLogger().info("Logging to \"FlailSaber.log\" successful.");
+    else           getLogger().info("Creating log file failed.");
+}
+
+void PRINT_ALL_GAMEOBJECTS_IN_SCENE(){
+    auto allObject = UnityEngine::Resources::FindObjectsOfTypeAll(csTypeOf(UnityEngine::GameObject*));
+
+    std::stringstream buff;
+
+    for(int i=0; i<allObject->Length(); i++){
+        auto go_asObj = (*allObject)[i];
+        //getLogger().info("Found items: %i", i);
+        
+        if (
+            !(go_asObj->get_hideFlags() == UnityEngine::HideFlags::NotEditable || go_asObj->get_hideFlags() == UnityEngine::HideFlags::HideAndDontSave)
+            )
+        {
+            //getLogger().info("Go name: %s", to_utf8(csstrtostr(name)).c_str() );
+            // TRYING CASTING 
+            UnityEngine::GameObject* go = il2cpp_utils::cast<UnityEngine::GameObject, UnityEngine::Object>(go_asObj);
+            
+            Il2CppString* name = go->get_name(); // C# strings are pointers to UTF-16 strings
+            Il2CppString* rootName = go->get_transform()->GetRoot()->get_name();
+
+            UnityEngine::Transform* parentTf = go->get_transform();
+
+
+            while(name->CompareTo(rootName) != 0){
+                std::stringstream namestream;
+                namestream << to_utf8(csstrtostr(name)).c_str() << "(" << parentTf->GetInstanceID() << ")";
+                buff << namestream.str() << " -> ";
+                
+                parentTf = parentTf->get_parent();
+                name = parentTf->get_gameObject()->get_name();
+            }
+
+            //Name: SaberA, RootName: MenuCore
+            //buff << i << "\t" << "Name: " << to_utf8(csstrtostr(name)).c_str();
+            buff << to_utf8(csstrtostr(rootName)).c_str() << "(" << go->get_transform()->GetRoot()->GetInstanceID() << ")";
+            
+            buff << '\n' << '\n';
+        }
+    }
+
+    WRITE_TO_LOG(buff);
+}
+
+
+// Hook 1
+MAKE_HOOK_MATCH(
+    HealthWarningViewController_DidActivate, 
+    &GlobalNamespace::HealthWarningViewController::DidActivate,
+    void,
+    GlobalNamespace::HealthWarningViewController* self, 
+    bool firstActivation, 
+    bool addedToHierarchy, 
+    bool screenSystemEnabling
+) {
+    
+    HealthWarningViewController_DidActivate(self, firstActivation, addedToHierarchy, screenSystemEnabling);
+    
+    getLogger().info("Health menu loaded.");
+    self->continueButton->Press();
+    getLogger().info("Pressed continue button with script.");
+    
+}
+
+// Hook 2
+MAKE_HOOK_MATCH(
+    MainMenuViewController_DidActivate, 
+    &GlobalNamespace::MainMenuViewController::DidActivate,
+    void,
+    GlobalNamespace::MainMenuViewController* self, 
+    bool firstActivation, 
+    bool addedToHierarchy, 
+    bool screenSystemEnabling
+) {
+    
+    MainMenuViewController_DidActivate(self, firstActivation, addedToHierarchy, screenSystemEnabling);
+
+    // CHANGING SOLO BUTTON NAME
+    UnityEngine::GameObject* solo_button  = UnityEngine::GameObject::Find(il2cpp_utils::newcsstr("SoloButton"));
+    if (solo_button == nullptr) return; // the object was not found in the scene
+
+    auto my_text = solo_button->GetComponentInChildren<HMUI::CurvedTextMeshPro*>();
+    my_text->set_text(il2cpp_utils::createcsstr("Yksi -.-"));
+
+    //PRINT_ALL_GAMEOBJECTS_IN_SCENE();
+}
+
+// Hook 3
+
+inline Il2CppObject* Cust_AddComponent(UnityEngine::GameObject* go, std::string namespc, std::string klss){
+    Il2CppClass* cs_class = il2cpp_utils::GetClassFromName(namespc, klss);
+    auto systemType_class = il2cpp_utils::GetSystemType(cs_class);
+    
+    Il2CppObject* il2_go   = il2cpp_utils::ToIl2CppObject(go);
+
+    auto addedComponentOpt = il2cpp_utils::RunMethod(il2_go, "AddComponent", systemType_class);
+    auto uncastedAddedComp = addedComponentOpt.value(); // This will be typeof UnityEngine::Component
+
+    return uncastedAddedComp;
+}
+
+#include "UnityEngine/BoxCollider.hpp"
+#include "UnityEngine/Physics.hpp"
+#include "UnityEngine/Object.hpp"
+
+MAKE_HOOK_MATCH(
+    SaberModelController_Init, 
+    &GlobalNamespace::SaberModelController::Init,
+    void,
+    GlobalNamespace::SaberModelController* self, 
+    UnityEngine::Transform* parent, 
+    GlobalNamespace::Saber* saber
+) {
+
+    getLogger().info("SaberModelController::Init() Called.");
+
+    SaberModelController_Init(self, parent, saber);
+
+    if (saber->get_saberType() == GlobalNamespace::SaberType::SaberA){
+        leftSaber = saber;
+        getLogger().info("Left  Saber initialized");
+    } else{
+        rightSaber = saber;
+        
+        // BREAK WHEN NOT IN GAME
+        if(to_utf8(csstrtostr(  rightSaber->get_transform()->get_name() )).compare("RightSaber") != 0){
+            return;
+        }
+        getLogger().info("Right Saber initialized");
+
+        // --------------------------------------------------
+        
+        // Add Rigidbody to saber
+        r_thisRB = rightSaber->get_gameObject()->AddComponent<UnityEngine::Rigidbody*>();
+        r_thisRB->set_useGravity(false);
+        getLogger().info("Right Saber Rigidbody added.");
+
+        // WARNING NOTE: Disabling all collisions to sabers (Should not be all collisions!!!)
+        auto goarr = UnityEngine::Resources::FindObjectsOfTypeAll<UnityEngine::GameObject*>();
+        for(int i=0; i<goarr->get_Length(); i++){
+            auto go = (*goarr)[i];
+            auto col = go->GetComponent<UnityEngine::Collider*>();
+            if(col != nullptr){
+                UnityEngine::Physics::IgnoreCollision(
+                    col,
+                    saber->get_gameObject()->GetComponent<UnityEngine::BoxCollider*>()
+                );
+            }
+        }
+
+        r_saberBottom  = rightSaber->get_gameObject()->get_transform()->Find(il2cpp_utils::newcsstr("Bottom"));
+        r_saberTop     = rightSaber->get_gameObject()->get_transform()->Find(il2cpp_utils::newcsstr("Top"));
+        r_physicalHand = rightSaber->get_gameObject()->get_transform()->get_parent();
+        
+        // Take saber away from hand
+        rightSaber->get_gameObject()->get_transform()->set_parent(r_physicalHand->get_parent());
+
+
+    }
+
+    //Il2CppString * parentName = saber->get_transform()->get_parent()->get_name();
+    //getLogger().info("%s",to_utf8(csstrtostr(parentName)).c_str());
+}
+
+#include "GlobalNamespace/TimeHelper.hpp"
+#include "GlobalNamespace/SaberType.hpp"
+#include "UnityEngine/Vector3.hpp"
+#include "GlobalNamespace/SaberMovementData.hpp"
+#include "UnityEngine/Quaternion.hpp"
+
+MAKE_HOOK_MATCH(
+    Saber_ManualUpdate, 
+    &GlobalNamespace::Saber::ManualUpdate,
+    void,
+    GlobalNamespace::Saber* self
+) {
+
+   
+    
+    // Ensures we are "using" this method only once per "frame"
+    if(self->get_saberType() == GlobalNamespace::SaberType::SaberB){
+
+        UnityEngine::Vector3 saberBottomPos;
+        UnityEngine::Vector3 toMoveDir;
+        
+        self->get_transform()->set_position(saberBottomPos);
+        self->get_transform()->set_rotation(UnityEngine::Quaternion::LookRotation(-toMoveDir));
+
+        //float curTime = GlobalNamespace::TimeHelper::get_time();
+        //float deltaTime = curTime-prevTime;
+        //prevTime = curTime;
+
+        //UnityEngine::Vector3 gravity{0.0f, -1.81f, 0.0f};
+
+        //r_thisRB->AddForceAtPosition(gravity, r_saberTop->get_position());
+
+        //float dist = UnityEngine::Vector3::Distance(r_saberBottom->get_position(), r_physicalHand->get_position());
+
+        //UnityEngine::Vector3 forceAt = (r_physicalHand->get_position() - r_saberBottom->get_position()).get_normalized();
+
+        //r_thisRB->AddForceAtPosition(
+        //    forceAt * deltaTime * dist * 100,
+        //    r_saberBottom->get_position()
+        //);
+        //getLogger().info("dist: %f", dist);
+        /*
+        float curTime = GlobalNamespace::TimeHelper::get_time();
+        float deltaTime = curTime-prevTime;
+        prevTime = curTime;
+
+        auto handPos = r_physicalHand->get_position();
+        auto saberBottomPos = r_saberBottom->get_position();
+
+        auto toMoveDir = (handPos-saberBottomPos).get_normalized();
+        saberBottomPos = saberBottomPos - toMoveDir*0.7f;
+        toMoveDir = (handPos-saberBottomPos).get_normalized();
+
+        auto dist = UnityEngine::Vector3::Distance(handPos, saberBottomPos);
+        if (dist >= 0.02f) {
+            saberBottomPos = (saberBottomPos) + (toMoveDir * deltaTime * 30.0f * dist);
+        }
+        saberBottomPos = saberBottomPos + UnityEngine::Vector3::_get_downVector()* 2.0f *deltaTime;
+        */
+        //self->handleTransform->set_position(saberBottomPos);
+        
+    } 
+    /*
+    self->handlePos = self->handleTransform->get_position();
+    self->handleRot = self->handleTransform->get_rotation();
+    self->saberBladeTopPos = self->saberBladeTopTransform->get_position();
+    self->saberBladeBottomPos = self->saberBladeBottomTransform->get_position();
+
+    self->movementData->AddNewData(self->saberBladeTopPos, self->saberBladeBottomPos, GlobalNamespace::TimeHelper::get_time());
+    */
+    Saber_ManualUpdate(self);
+}
+    
+
+// Called later on in the game loading - a good time to install function hooks
+extern "C" void load() {
+    il2cpp_functions::Init();
+    QuestUI::Init();
+    QuestUI::Register::RegisterModSettingsViewController(modInfo, "Henri Mod");
+    
+    getLogger().info("Installing hooks...");
+    INSTALL_HOOK(getLogger(), HealthWarningViewController_DidActivate);
+    INSTALL_HOOK(getLogger(), MainMenuViewController_DidActivate); 
+    INSTALL_HOOK(getLogger(), SaberModelController_Init);
+    INSTALL_HOOK(getLogger(), Saber_ManualUpdate);
+    getLogger().info("Installed all hooks!");
+}
+
